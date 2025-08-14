@@ -24,7 +24,7 @@ def test_add_new_pet(api_client):
     with allure.step('Отправка POST-запроса для добавления питомца'):
         try:
             response = api_client.post(
-                PetEndpoints.PET_ENDPOINT.value,  # Используем .value для получения строки
+                endpoint=PetEndpoints.PET_ENDPOINT.value,  # Используем .value для получения строки
                 data=payload.model_dump(),  # Преобразуем Pydantic-модель в словарь
                 status_code=200
             )
@@ -46,3 +46,47 @@ def test_add_new_pet(api_client):
             pytest.fail(f"Ошибка валидации ответа: {str(e)}")
 
     return response
+
+@allure.title('Получение списка питомцев по статусу')
+@allure.description('Проверяет эндпоинт /pet/findByStatus для различных статусов питомцев.')
+@pytest.mark.parametrize(
+    'status, expected_status_code',
+    [
+        ('available', 200),
+        ('pending', 200),
+        ('sold', 200),
+        ('reserved', 400),
+        ('', 400)
+    ]
+)
+def test_get_list_of_pets_by_status(api_client, create_pet, status, expected_status_code):
+    # Создание питомца для валидных статусов
+    if status in [PetStatus.AVAILABLE.value, PetStatus.PENDING.value, PetStatus.SOLD.value]:
+        with allure.step(f'Создание питомца со статусом {status} перед запросом'):
+            create_pet(PetStatus(status))
+
+    # Отправка запроса на получение списка питомцев
+    with allure.step(f'Отправка GET-запроса для получения списка питомцев со статусом {status}'):
+        try:
+            response = api_client.get(
+                endpoint=PetEndpoints.PET_BY_STATUS.value,
+                params={'status': status},
+                status_code=expected_status_code
+            )
+        except AssertionError as e:
+            allure.attach(str(e), name="AssertionError", attachment_type=allure.attachment_type.TEXT)
+            pytest.fail(f"Неожиданный код ответа: {str(e)}")
+
+    # Проверка формата ответа
+    with allure.step('Проверка кода ответа и формата данных'):
+        if expected_status_code == 200:
+            try:
+                # Валидация ответа как списка объектов Pet
+                pets = [Pet(**item) for item in response]
+                assert isinstance(response, list), 'Ответ не является списком'
+                assert all(isinstance(pet, Pet) for pet in pets), 'Элементы ответа не соответствуют модели Pet'
+            except ValidationError as e:
+                allure.attach(str(e), name="ValidationError", attachment_type=allure.attachment_type.TEXT)
+                pytest.fail(f"Ошибка валидации ответа: {str(e)}")
+        elif expected_status_code == 400:
+            assert isinstance(response, dict), 'Ответ не является словарем'
