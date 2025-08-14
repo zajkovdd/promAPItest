@@ -25,7 +25,7 @@ def test_add_new_pet(api_client):
         try:
             response = api_client.post(
                 PetEndpoints.PET_ENDPOINT.value,  # Используем .value для получения строки
-                data=payload.dict(),  # Преобразуем Pydantic-модель в словарь
+                data=payload.model_dump(),  # Преобразуем Pydantic-модель в словарь
                 status_code=200
             )
         except HTTPError as e:
