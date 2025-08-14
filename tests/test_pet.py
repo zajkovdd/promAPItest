@@ -59,7 +59,7 @@ def test_add_new_pet(api_client):
         ('', 400)
     ]
 )
-def test_get_list_of_pets_by_status(api_client, create_pet, status, expected_status_code):
+def test_get_list_of_pets_by_status(api_client, create_pet, status, expected_status_code, created_pet_ids=None):
     # Создание питомца для валидных статусов
     if status in [PetStatus.AVAILABLE.value, PetStatus.PENDING.value, PetStatus.SOLD.value]:
         with allure.step(f'Создание питомца со статусом {status} перед запросом'):
@@ -90,3 +90,36 @@ def test_get_list_of_pets_by_status(api_client, create_pet, status, expected_sta
                 pytest.fail(f"Ошибка валидации ответа: {str(e)}")
         elif expected_status_code == 400:
             assert isinstance(response, dict), 'Ответ не является словарем'
+
+
+@allure.title('Удаление питомца по ID')
+@allure.description('Проверяет успешное удаление питомца через эндпоинт /pet/{petId} и подтверждает, что питомец больше не существует.')
+def test_delete_pet_with_id(api_client, create_pet):
+    # Создание питомца
+    with allure.step('Создание питомца для удаления'):
+        response = create_pet(PetStatus.AVAILABLE)
+        pet_id = response['id']
+
+    # Отправка запроса на удаление питомца
+    with allure.step(f'Отправка DELETE-запроса для удаления питомца с ID {pet_id}'):
+        try:
+            response = api_client.delete(
+                endpoint=f'{PetEndpoints.PET_ENDPOINT.value}/{pet_id}',
+                status_code=200
+            )
+            # Необязательно: проверяем, что ответ содержит ожидаемый текст
+            assert response == "Pet deleted", f"Ожидался ответ 'Pet deleted', получено: {response}"
+        except AssertionError as e:
+            allure.attach(str(e), name="AssertionError", attachment_type=allure.attachment_type.TEXT)
+            pytest.fail(f"Не удалось удалить питомца с ID {pet_id}: {str(e)}")
+
+    # Проверка, что питомец удалён
+    with allure.step(f'Проверка, что питомец с ID {pet_id} больше не существует'):
+        try:
+            api_client.get_after_delete(
+                endpoint=f'{PetEndpoints.PET_ENDPOINT.value}/{pet_id}',
+                status_code=404
+            )
+        except AssertionError as e:
+            allure.attach(str(e), name="AssertionError", attachment_type=allure.attachment_type.TEXT)
+            pytest.fail(f"Питомец с ID {pet_id} всё ещё существует: {str(e)}")

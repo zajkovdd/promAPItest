@@ -41,4 +41,20 @@ class APIClient:
             assert response.status_code == status_code
         return response.json()
 
+    def delete(self, endpoint, status_code=None):
+        response = self.session.delete(f"{self.base_url}{endpoint}")
+        if status_code is not None:
+            assert response.status_code == status_code, (
+                f"Expected status code {status_code}, but got {response.status_code}. "
+                f"Response: {response.text}"
+            )
+        return response.text  # Возвращаем текст для не-JSON ответов
+
+    def get_after_delete(self, endpoint, params=None, status_code=200):
+        url = self.base_url + endpoint
+        response = self.session.get(url, params=params)
+        if status_code:
+            assert response.status_code == status_code
+        return response.text
+
 
